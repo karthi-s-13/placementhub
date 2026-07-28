@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import {
   HomeIcon, MegaphoneIcon, ChatBubbleLeftRightIcon,
   BookmarkIcon, UserIcon, ShieldCheckIcon
@@ -12,6 +13,7 @@ import {
 
 export default function BottomNav() {
   const { isSuperAdmin } = useAuth();
+  const { unreadChatCount, unreadAnnouncementCount } = useNotifications();
 
   const items = [
     { to: '/feed', icon: HomeIcon, activeIcon: HomeSolid, label: 'Home' },
@@ -29,7 +31,7 @@ export default function BottomNav() {
             key={to}
             to={to}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 min-w-[56px] ${
+              `relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-150 min-w-[56px] ${
                 isActive
                   ? 'text-primary-600'
                   : 'text-slate-400 hover:text-slate-600'
@@ -38,11 +40,19 @@ export default function BottomNav() {
           >
             {({ isActive }) => (
               <>
-                {isActive ? (
-                  <ActiveIcon className="w-5 h-5" />
-                ) : (
-                  <Icon className="w-5 h-5" />
-                )}
+                <div className="relative">
+                  {isActive ? (
+                    <ActiveIcon className="w-5 h-5" />
+                  ) : (
+                    <Icon className="w-5 h-5" />
+                  )}
+                  {to === '/chat' && unreadChatCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-red-600 border-2 border-white rounded-full animate-pulse" />
+                  )}
+                  {to === '/announcements' && unreadAnnouncementCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-violet-600 border-2 border-white rounded-full animate-pulse" />
+                  )}
+                </div>
                 <span className="text-[10px] font-medium">{label}</span>
               </>
             )}

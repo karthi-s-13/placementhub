@@ -1,16 +1,41 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
+import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.models import Opportunity, User
+from app.models.models import Opportunity, User, DirectMessage
 from app.services.email_service import send_email, build_deadline_reminder_email
 from app.services.notification_service import create_notification
-import logging
 
 logger = logging.getLogger(__name__)
 
-scheduler = AsyncIOScheduler()
+try:
+    # pyrefly: ignore [missing-import]
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    # pyrefly: ignore [missing-import]
+    from apscheduler.triggers.cron import CronTrigger
+    scheduler = AsyncIOScheduler()
+    HAS_APSCHEDULER = True
+except (ImportError, ModuleNotFoundError):
+    scheduler = None
+    HAS_APSCHEDULER = False
+    logger.warning("APScheduler library not found in Python environment. Scheduled background jobs disabled.")
+
+
+
+async def purge_expired_direct_messages():
+    """Delete 1-on-1 direct messages older than 24 hours (24-Hour Ephemeral Messaging)."""
+    db: Session = SessionLocal()
+    try:
+        cutoff = datetime.utcnow() - timedelta(hours=24)
+        deleted = db.query(DirectMessage).filter(DirectMessage.created_at < cutoff).delete(synchronize_session=False)
+        if deleted > 0:
+            db.commit()
+            logger.info(f"Purged {deleted} direct messages older than 24 hours.")
+    except Exception as e:
+        logger.error(f"Error purging expired direct messages: {e}")
+        db.rollback()
+    finally:
+        db.close()
 
 
 async def archive_expired_opportunities():
@@ -81,6 +106,17 @@ async def send_deadline_reminders():
 
 
 def start_scheduler():
+    if not HAS_APSCHEDULER or not scheduler:
+        logger.warning("APScheduler library unavailable. Skipping background scheduler startup.")
+        return
+
+    # Run every hour to purge direct messages older than 24h
+    scheduler.add_job(
+        purge_expired_direct_messages,
+        CronTrigger(minute=0),
+        id="purge_direct_messages",
+        replace_existing=True,
+    )
     # Run every day at midnight to archive expired posts
     scheduler.add_job(
         archive_expired_opportunities,
@@ -96,9 +132,11 @@ def start_scheduler():
         replace_existing=True,
     )
     scheduler.start()
-    logger.info("Scheduler started: archive_expired + deadline_reminders")
+    logger.info("Scheduler started: purge_direct_messages + archive_expired + deadline_reminders")
 
 
 def stop_scheduler():
-    if scheduler.running:
+    if HAS_APSCHEDULER and scheduler and getattr(scheduler, "running", False):
         scheduler.shutdown()
+
+

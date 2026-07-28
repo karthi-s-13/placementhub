@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import WebSocket
 from typing import Dict, List, Set
 import json
@@ -12,35 +13,38 @@ class ConnectionManager:
         self.active_connections: Dict[int, List[dict]] = {}
         # user_id -> list of WebSockets
         self.user_sockets: Dict[int, List[WebSocket]] = {}
+        self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, channel_id: int, user_id: int, user_name: str):
         await websocket.accept()
-        if channel_id not in self.active_connections:
-            self.active_connections[channel_id] = []
-        self.active_connections[channel_id].append({
-            "websocket": websocket,
-            "user_id": user_id,
-            "user_name": user_name,
-        })
-        if user_id not in self.user_sockets:
-            self.user_sockets[user_id] = []
-        self.user_sockets[user_id].append(websocket)
+        async with self._lock:
+            if channel_id not in self.active_connections:
+                self.active_connections[channel_id] = []
+            self.active_connections[channel_id].append({
+                "websocket": websocket,
+                "user_id": user_id,
+                "user_name": user_name,
+            })
+            if user_id not in self.user_sockets:
+                self.user_sockets[user_id] = []
+            self.user_sockets[user_id].append(websocket)
         logger.info(f"User {user_name} connected to channel {channel_id}")
 
-    def disconnect(self, websocket: WebSocket, channel_id: int, user_id: int = None):
-        if channel_id in self.active_connections:
-            self.active_connections[channel_id] = [
-                conn for conn in self.active_connections[channel_id]
-                if conn["websocket"] != websocket
-            ]
-            if not self.active_connections[channel_id]:
-                del self.active_connections[channel_id]
-        if user_id and user_id in self.user_sockets:
-            self.user_sockets[user_id] = [
-                ws for ws in self.user_sockets[user_id] if ws != websocket
-            ]
-            if not self.user_sockets[user_id]:
-                del self.user_sockets[user_id]
+    async def disconnect(self, websocket: WebSocket, channel_id: int, user_id: int = None):
+        async with self._lock:
+            if channel_id in self.active_connections:
+                self.active_connections[channel_id] = [
+                    conn for conn in self.active_connections[channel_id]
+                    if conn["websocket"] != websocket
+                ]
+                if not self.active_connections[channel_id]:
+                    del self.active_connections[channel_id]
+            if user_id and user_id in self.user_sockets:
+                self.user_sockets[user_id] = [
+                    ws for ws in self.user_sockets[user_id] if ws != websocket
+                ]
+                if not self.user_sockets[user_id]:
+                    del self.user_sockets[user_id]
 
     async def send_direct_message(self, target_user_id: int, message: dict):
         if target_user_id not in self.user_sockets:

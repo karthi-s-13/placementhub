@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import logging
 
 from app.config import settings
-from app.database import create_tables, SessionLocal
+from app.database import create_tables, SessionLocal, engine
 from app.utils.auth import ensure_super_admin
 from app.services.scheduler_service import start_scheduler, stop_scheduler
 from app.routers import auth, opportunities, comments, saved, announcements, chat, analytics, admin, notifications
@@ -17,16 +17,26 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting PlacementHub API...")
-    create_tables()
-    logger.info("Database tables created/verified.")
-    
-    # Seed Super Admin
-    db = SessionLocal()
     try:
-        ensure_super_admin(db)
-        logger.info("Super admin account verified.")
-    finally:
-        db.close()
+        create_tables()
+        logger.info("Database tables created/verified.")
+    except Exception as e:
+        logger.error(f"Error creating/verifying tables: {e}")
+
+    # Seed Super Admin with retry/reconnect handling
+    for attempt in range(3):
+        db = SessionLocal()
+        try:
+            ensure_super_admin(db)
+            chat.ensure_global_chat_channel(db)
+            logger.info("Super admin account & Global Chat room verified.")
+            break
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1} verifying super admin failed: {e}")
+            db.rollback()
+            engine.dispose()
+        finally:
+            db.close()
 
     start_scheduler()
     yield
@@ -43,14 +53,21 @@ app = FastAPI(
 )
 
 # CORS — allow frontend origins
+origins = list(set([
+    settings.FRONTEND_URL.rstrip("/"),
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://localhost:5174",
+    "http://127.0.0.1:5174",
+    "http://10.236.31.188:5173/",
+]))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "https://*.vercel.app",
-    ],
+    allow_origins=origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

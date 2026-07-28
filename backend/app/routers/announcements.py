@@ -58,7 +58,7 @@ async def create_announcement(
     db.refresh(ann)
 
     background_tasks.add_task(
-        notify_all_students_announcement, db, ann, current_user.name
+        notify_all_students_announcement, ann.id, current_user.name
     )
     return _build_out(ann)
 
@@ -67,10 +67,12 @@ async def create_announcement(
 def delete_announcement(
     announcement_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_faculty_or_super_admin),
+    current_user: User = Depends(get_current_user),
 ):
     ann = db.query(Announcement).filter(Announcement.id == announcement_id).first()
     if not ann:
         raise HTTPException(404, "Announcement not found")
+    if current_user.role not in ("super_admin", "faculty") and ann.created_by != current_user.id:
+        raise HTTPException(403, "Not authorized to delete this announcement")
     db.delete(ann)
     db.commit()

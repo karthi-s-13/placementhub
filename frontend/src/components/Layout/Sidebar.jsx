@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useNotifications } from '../../context/NotificationContext';
 import {
   HomeIcon, MegaphoneIcon, ChatBubbleLeftRightIcon,
   BookmarkIcon, UserIcon, ShieldCheckIcon,
@@ -8,6 +9,7 @@ import {
 
 export default function Sidebar() {
   const { user, isSuperAdmin, logout } = useAuth();
+  const { unreadChatCount, unreadAnnouncementCount } = useNotifications();
   const navigate = useNavigate();
 
   const navItems = [
@@ -50,11 +52,31 @@ export default function Sidebar() {
             key={to}
             to={to}
             className={({ isActive }) =>
-              isActive ? 'nav-link-active' : 'nav-link'
+              `relative flex items-center gap-3 ${
+                isActive ? 'nav-link-active' : 'nav-link'
+              }`
             }
           >
-            <Icon className="w-5 h-5 flex-shrink-0" />
-            <span>{label}</span>
+            <div className="relative">
+              <Icon className="w-5 h-5 flex-shrink-0" />
+              {to === '/chat' && unreadChatCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-600 border-2 border-white rounded-full animate-pulse" />
+              )}
+              {to === '/announcements' && unreadAnnouncementCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-violet-600 border-2 border-white rounded-full animate-pulse" />
+              )}
+            </div>
+            <span className="flex-1">{label}</span>
+            {to === '/chat' && unreadChatCount > 0 && (
+              <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                {unreadChatCount}
+              </span>
+            )}
+            {to === '/announcements' && unreadAnnouncementCount > 0 && (
+              <span className="bg-violet-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full animate-pulse">
+                {unreadAnnouncementCount}
+              </span>
+            )}
           </NavLink>
         ))}
       </nav>

@@ -8,13 +8,23 @@ export function NotificationProvider({ children }) {
   const { user } = useAuth();
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const fetchNotifications = useCallback(async () => {
     if (!user) return;
     try {
       const { data } = await api.get('/api/notifications/');
-      setNotifications(data);
-      setUnreadCount(data.filter(n => !n.is_read).length);
+      setNotifications(data || []);
+      setUnreadCount((data || []).filter(n => !n.is_read).length);
+    } catch { /* ignore */ }
+  }, [user]);
+
+  const fetchUnreadChatCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data } = await api.get('/api/chat/users');
+      const totalUnread = (data || []).reduce((acc, u) => acc + (u.unread_count || 0), 0);
+      setUnreadChatCount(totalUnread);
     } catch { /* ignore */ }
   }, [user]);
 
@@ -36,16 +46,33 @@ export function NotificationProvider({ children }) {
     } catch { /* ignore */ }
   }, []);
 
+  const clearAll = useCallback(async () => {
+    try {
+      await api.delete('/api/notifications/clear-all');
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchNotifications();
-    // Poll every 30 seconds for new notifications
-    const interval = setInterval(fetchNotifications, 30000);
+    fetchUnreadChatCount();
+
+    const interval = setInterval(() => {
+      fetchNotifications();
+      fetchUnreadChatCount();
+    }, 30000);
     return () => clearInterval(interval);
-  }, [fetchNotifications]);
+  }, [fetchNotifications, fetchUnreadChatCount]);
+
+  const unreadAnnouncementCount = (notifications || []).filter(
+    (n) => !n.is_read && n.type === 'announcement'
+  ).length;
 
   return (
     <NotificationContext.Provider value={{
-      notifications, unreadCount, fetchNotifications, markAsRead, markAllAsRead
+      notifications, unreadCount, unreadAnnouncementCount, fetchNotifications, markAsRead, markAllAsRead, clearAll,
+      unreadChatCount, fetchUnreadChatCount
     }}>
       {children}
     </NotificationContext.Provider>

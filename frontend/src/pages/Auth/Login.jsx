@@ -88,21 +88,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Super Admin Quick Login Hint */}
-          <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold text-purple-900">👑 Super Admin Access</p>
-              <p className="text-[11px] text-purple-700">superadmin@placementhub.com</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setForm({ email: 'superadmin@placementhub.com', password: 'SuperAdmin@123' })}
-              className="text-xs font-semibold px-2.5 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
-            >
-              Fill Credentials
-            </button>
-          </div>
-
           <p className="text-center text-sm text-slate-500 mt-6">
             Don't have an account?{' '}
             <Link to="/register" className="text-primary-600 font-medium hover:text-primary-700">

@@ -3,18 +3,35 @@ import { PlusIcon, TrashIcon, MapPinIcon, CalendarIcon, ClockIcon, MegaphoneIcon
 import Layout from '../components/Layout/Layout';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { formatDate } from '../utils/date';
 
-function AnnouncementCard({ ann, canManage, onDelete }) {
+function AnnouncementCard({ ann, canManage, onDelete, unreadNotifId, onMarkRead }) {
   const eventDateObj = ann.event_date ? new Date(ann.event_date) : null;
   const monthStr = eventDateObj ? eventDateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase() : null;
   const dayStr = eventDateObj ? eventDateObj.getDate() : null;
 
+  const handleClick = () => {
+    if (unreadNotifId) {
+      onMarkRead(unreadNotifId);
+    }
+  };
+
   return (
-    <article className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-sm space-y-4 transition-all hover:shadow-md relative">
+    <article
+      onClick={handleClick}
+      className={`bg-white rounded-3xl p-6 border shadow-sm space-y-4 transition-all hover:shadow-md relative ${
+        unreadNotifId ? 'border-violet-300 ring-2 ring-violet-100 bg-violet-50/20' : 'border-slate-200/80'
+      }`}
+    >
       {/* Top Header Row */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {unreadNotifId && (
+            <span className="bg-violet-600 text-white text-[11px] font-extrabold px-3 py-1 rounded-xl shadow-xs animate-pulse flex items-center gap-1">
+              ✨ NEW ANNOUNCEMENT
+            </span>
+          )}
           {ann.is_pinned && (
             <span className="bg-amber-100 text-amber-800 text-[11px] font-bold px-3 py-1 rounded-xl shadow-xs">
               📌 Pinned
@@ -27,7 +44,7 @@ function AnnouncementCard({ ann, canManage, onDelete }) {
 
         {canManage && (
           <button
-            onClick={() => onDelete(ann.id)}
+            onClick={(e) => { e.stopPropagation(); onDelete(ann.id); }}
             className="p-1.5 rounded-xl hover:bg-red-50 text-slate-300 hover:text-red-500 transition-colors"
             title="Delete Announcement"
           >
@@ -79,6 +96,7 @@ function AnnouncementCard({ ann, canManage, onDelete }) {
 
 export default function Announcements() {
   const { isSuperAdmin, isFaculty } = useAuth();
+  const { notifications, markAsRead } = useNotifications();
   const canManage = isSuperAdmin || isFaculty;
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -279,9 +297,22 @@ export default function Announcements() {
               </div>
             ) : (
               <div className="space-y-5">
-                {filteredAnnouncements.map((ann) => (
-                  <AnnouncementCard key={ann.id} ann={ann} canManage={canManage} onDelete={handleDelete} />
-                ))}
+                {filteredAnnouncements.map((ann) => {
+                  const unreadNotif = (notifications || []).find(
+                    (n) => !n.is_read && n.type === 'announcement' && n.reference_id === ann.id
+                  );
+                  const canDelete = isSuperAdmin || isFaculty || (user && user.id === ann.created_by);
+                  return (
+                    <AnnouncementCard
+                      key={ann.id}
+                      ann={ann}
+                      canManage={canDelete}
+                      onDelete={handleDelete}
+                      unreadNotifId={unreadNotif?.id}
+                      onMarkRead={markAsRead}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>

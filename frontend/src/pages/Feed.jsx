@@ -5,10 +5,12 @@ import Layout from '../components/Layout/Layout';
 import OpportunityCard from '../components/Opportunity/OpportunityCard';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { useNotifications } from '../context/NotificationContext';
 import { formatDate } from '../utils/date';
 
 export default function Feed() {
   const { user } = useAuth();
+  const { unreadAnnouncementCount } = useNotifications();
   const navigate = useNavigate();
   const [opportunities, setOpportunities] = useState([]);
   const [savedOpportunities, setSavedOpportunities] = useState([]);
@@ -81,9 +83,12 @@ export default function Feed() {
             </button>
             <button
               onClick={() => navigate('/announcements')}
-              className="bg-white/10 hover:bg-white/20 text-white font-semibold border border-white/20 px-6 py-3 rounded-2xl text-sm transition-all active:scale-95"
+              className="relative bg-white/10 hover:bg-white/20 text-white font-semibold border border-white/20 px-6 py-3 rounded-2xl text-sm transition-all active:scale-95 flex items-center gap-2"
             >
-              View announcements
+              <span>View announcements</span>
+              {unreadAnnouncementCount > 0 && (
+                <span className="w-2.5 h-2.5 rounded-full bg-violet-400 animate-pulse" />
+              )}
             </button>
           </div>
         </div>

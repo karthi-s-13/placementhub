@@ -54,9 +54,9 @@ export function useWebSocket(optionsOrChannelId, onMessage) {
     };
   }, [channelId]);
 
-  const sendMessage = useCallback((content) => {
+  const sendMessage = useCallback((data) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ content }));
+      wsRef.current.send(typeof data === 'string' ? data : JSON.stringify(data));
     }
   }, []);
 

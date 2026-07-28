@@ -1,45 +1,22 @@
 version: "3.9"
 
 services:
-  db:
-    image: mysql:8.0
-    container_name: placementhub_db
-    restart: always
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: placementhub
-      MYSQL_USER: phuser
-      MYSQL_PASSWORD: phpassword
-    ports:
-      - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      timeout: 10s
-      retries: 5
-
   backend:
     build: ./backend
     container_name: placementhub_backend
     restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DATABASE_URL: mysql+pymysql://phuser:phpassword@db:3306/placementhub
-      SECRET_KEY: change-this-in-production-use-a-long-random-string
-      ALGORITHM: HS256
-      ACCESS_TOKEN_EXPIRE_MINUTES: 10080
-      GMAIL_USER: ${GMAIL_USER}
-      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
-      FRONTEND_URL: http://localhost:5173
-      BATCH_SIZE: 53
-      APP_NAME: PlacementHub
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - ./backend/uploads:/app/uploads
 
-volumes:
-  mysql_data:
+  frontend:
+    build: ./frontend
+    container_name: placementhub_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend

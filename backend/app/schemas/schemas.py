@@ -1,6 +1,6 @@
 from datetime import datetime, date, time
 from typing import Optional, List
-from pydantic import BaseModel, EmailStr, validator
+from pydantic import BaseModel, EmailStr, validator, field_serializer
 import re
 
 
@@ -207,7 +207,10 @@ class ChatChannelOut(BaseModel):
 
 
 class ChatMessageCreate(BaseModel):
-    content: str
+    content: Optional[str] = None
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
 
 
 class ChatMessageOut(BaseModel):
@@ -215,8 +218,13 @@ class ChatMessageOut(BaseModel):
     channel_id: int
     user_id: int
     user_name: str
-    user_avatar_color: str
+    user_avatar_color: Optional[str] = "#0F2B5C"
     content: str
+    file_url: Optional[str] = None
+    file_name: Optional[str] = None
+    file_type: Optional[str] = None
+    is_edited: bool = False
+    is_deleted: bool = False
     created_at: datetime
 
     class Config:
@@ -285,6 +293,13 @@ class DirectMessageOut(BaseModel):
     is_deleted: bool = False
     is_read: bool
     created_at: datetime
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, dt: datetime) -> str:
+        if dt is None:
+            return None
+        iso = dt.isoformat()
+        return iso + "Z" if not iso.endswith("Z") else iso
 
     class Config:
         from_attributes = True

@@ -74,8 +74,7 @@ async def add_comment(
     # Notify the original commenter if this is a reply
     if parent_user_id and parent_user_id != current_user.id:
         await notify_comment_reply(
-            db=db,
-            opportunity=opp,
+            opportunity_id=opp.id,
             replying_user_name=current_user.name,
             original_user_id=parent_user_id,
             comment_content=payload.content,

@@ -1,14 +1,30 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookmarkIcon, BuildingOfficeIcon, ShareIcon, XMarkIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { BookmarkIcon, BuildingOfficeIcon, ShareIcon, XMarkIcon, PaperAirplaneIcon, TrashIcon } from '@heroicons/react/24/outline';
 import { BookmarkIcon as BookmarkSolid } from '@heroicons/react/24/solid';
 import api from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import { formatTimeAgo, parseDate, formatDate } from '../../utils/date';
 
-export default function OpportunityCard({ opportunity }) {
+export default function OpportunityCard({ opportunity, onDelete }) {
   const navigate = useNavigate();
+  const { user, isSuperAdmin, isFaculty } = useAuth();
   const [saving, setSaving] = useState(false);
   const [isSaved, setIsSaved] = useState(opportunity.is_saved);
+
+  const canDelete = isSuperAdmin || isFaculty || (user && user.id === opportunity.posted_by);
+
+  const handleDeleteOpportunity = async (e) => {
+    e.stopPropagation();
+    if (!confirm('Are you sure you want to delete this opportunity post?')) return;
+    try {
+      await api.delete(`/api/opportunities/${opportunity.id}`);
+      onDelete?.(opportunity.id);
+      window.location.reload();
+    } catch {
+      alert('Failed to delete opportunity.');
+    }
+  };
 
   // Share to Chat Modal state
   const [showShareModal, setShowShareModal] = useState(false);
@@ -113,6 +129,17 @@ export default function OpportunityCard({ opportunity }) {
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Delete Button (Author or Admin/Faculty) */}
+          {canDelete && (
+            <button
+              onClick={handleDeleteOpportunity}
+              className="p-1.5 rounded-xl hover:bg-red-50 text-slate-300 hover:text-red-600 transition-colors"
+              title="Delete Opportunity"
+            >
+              <TrashIcon className="w-5 h-5" />
+            </button>
+          )}
+
           {/* Share to Chat button */}
           <button
             onClick={openShareModal}

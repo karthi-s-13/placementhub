@@ -58,7 +58,7 @@ class Opportunity(Base):
     deadline = Column(DateTime, nullable=True)
     posted_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(
-        Enum("active", "pending", "archived", "expired"),
+        Enum("active", "pending", "archived", "expired", name="opportunity_status_enum"),
         default="active",
         nullable=False
     )
@@ -169,6 +169,11 @@ class ChatMessage(Base):
     channel_id = Column(Integer, ForeignKey("chat_channels.id", ondelete="CASCADE"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     content = Column(Text, nullable=False)
+    file_url = Column(String(500), nullable=True)
+    file_name = Column(String(255), nullable=True)
+    file_type = Column(String(50), nullable=True)
+    is_edited = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships
@@ -182,7 +187,7 @@ class Notification(Base):
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     type = Column(
-        Enum("new_opportunity", "announcement", "comment_reply", "deadline", "approval", "general"),
+        Enum("new_opportunity", "announcement", "comment_reply", "deadline", "approval", "general", name="notification_type_enum"),
         nullable=False
     )
     title = Column(String(200), nullable=False)

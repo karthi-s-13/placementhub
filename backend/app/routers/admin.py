@@ -77,18 +77,34 @@ def list_students(
     current_user: User = Depends(require_super_admin),
 ):
     users = db.query(User).order_by(User.name).all()
-    result = []
-    for s in users:
-        apps_count = db.query(func.count(ApplicationStatus.id)).filter(
-            ApplicationStatus.user_id == s.id
-        ).scalar() or 0
-        saved_count = db.query(func.count(SavedOpportunity.id)).filter(
-            SavedOpportunity.user_id == s.id
-        ).scalar() or 0
-        posts_count = db.query(func.count(Opportunity.id)).filter(
-            Opportunity.posted_by == s.id
-        ).scalar() or 0
-        result.append(StudentListOut(
+    if not users:
+        return []
+
+    user_ids = [u.id for u in users]
+
+    apps_counts = dict(
+        db.query(ApplicationStatus.user_id, func.count(ApplicationStatus.id))
+        .filter(ApplicationStatus.user_id.in_(user_ids))
+        .group_by(ApplicationStatus.user_id)
+        .all()
+    )
+
+    saved_counts = dict(
+        db.query(SavedOpportunity.user_id, func.count(SavedOpportunity.id))
+        .filter(SavedOpportunity.user_id.in_(user_ids))
+        .group_by(SavedOpportunity.user_id)
+        .all()
+    )
+
+    posts_counts = dict(
+        db.query(Opportunity.posted_by, func.count(Opportunity.id))
+        .filter(Opportunity.posted_by.in_(user_ids))
+        .group_by(Opportunity.posted_by)
+        .all()
+    )
+
+    return [
+        StudentListOut(
             id=s.id,
             name=s.name,
             email=s.email,
@@ -96,12 +112,13 @@ def list_students(
             department=s.department,
             batch=s.batch,
             role=s.role,
-            applications_count=apps_count,
-            saved_count=saved_count,
-            posts_count=posts_count,
+            applications_count=apps_counts.get(s.id, 0),
+            saved_count=saved_counts.get(s.id, 0),
+            posts_count=posts_counts.get(s.id, 0),
             created_at=s.created_at,
-        ))
-    return result
+        )
+        for s in users
+    ]
 
 
 @router.patch("/students/{user_id}/role")

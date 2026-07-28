@@ -20,29 +20,16 @@ from app.services.email_service import send_email, build_new_opportunity_email
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
 
 
-def _build_opportunity_out(opp: Opportunity, db: Session, current_user: User) -> OpportunityOut:
-    view_count = db.query(func.count(OpportunityView.id)).filter(
-        OpportunityView.opportunity_id == opp.id
-    ).scalar() or 0
-
-    comment_count = db.query(func.count(Comment.id)).filter(
-        Comment.opportunity_id == opp.id, Comment.parent_id == None
-    ).scalar() or 0
-
-    is_saved = db.query(SavedOpportunity).filter(
-        SavedOpportunity.opportunity_id == opp.id,
-        SavedOpportunity.user_id == current_user.id
-    ).first() is not None
-
-    is_viewed = db.query(OpportunityView).filter(
-        OpportunityView.opportunity_id == opp.id,
-        OpportunityView.user_id == current_user.id
-    ).first() is not None
-
-    # Poll counts
-    statuses = db.query(ApplicationStatus).filter(
-        ApplicationStatus.opportunity_id == opp.id
-    ).all()
+def _build_opportunity_out(
+    opp: Opportunity,
+    current_user: User,
+    view_count: int = 0,
+    comment_count: int = 0,
+    is_saved: bool = False,
+    is_viewed: bool = False,
+    statuses: list = None,
+) -> OpportunityOut:
+    statuses = statuses or []
     poll = ApplicationStatusPoll(
         interested=sum(1 for s in statuses if s.status in ("interested", "planning", "applied")),
         not_interested=sum(1 for s in statuses if s.status == "not_interested"),
@@ -63,8 +50,8 @@ def _build_opportunity_out(opp: Opportunity, db: Session, current_user: User) ->
         batch_filter=opp.batch_filter,
         deadline=opp.deadline,
         posted_by=opp.posted_by,
-        poster_name=opp.poster.name,
-        poster_role=opp.poster.role,
+        poster_name=opp.poster.name if opp.poster else "Placement Cell",
+        poster_role=opp.poster.role if opp.poster else "faculty",
         status=opp.status,
         is_pinned=opp.is_pinned,
         view_count=view_count,
@@ -74,6 +61,40 @@ def _build_opportunity_out(opp: Opportunity, db: Session, current_user: User) ->
         poll=poll,
         created_at=opp.created_at,
         updated_at=opp.updated_at,
+    )
+
+
+def _get_single_opportunity_out(opp: Opportunity, db: Session, current_user: User) -> OpportunityOut:
+    view_count = db.query(func.count(OpportunityView.id)).filter(
+        OpportunityView.opportunity_id == opp.id
+    ).scalar() or 0
+
+    comment_count = db.query(func.count(Comment.id)).filter(
+        Comment.opportunity_id == opp.id, Comment.parent_id == None
+    ).scalar() or 0
+
+    is_saved = db.query(SavedOpportunity).filter(
+        SavedOpportunity.opportunity_id == opp.id,
+        SavedOpportunity.user_id == current_user.id
+    ).first() is not None
+
+    is_viewed = db.query(OpportunityView).filter(
+        OpportunityView.opportunity_id == opp.id,
+        OpportunityView.user_id == current_user.id
+    ).first() is not None
+
+    statuses = db.query(ApplicationStatus).filter(
+        ApplicationStatus.opportunity_id == opp.id
+    ).all()
+
+    return _build_opportunity_out(
+        opp=opp,
+        current_user=current_user,
+        view_count=view_count,
+        comment_count=comment_count,
+        is_saved=is_saved,
+        is_viewed=is_viewed,
+        statuses=statuses,
     )
 
 
@@ -113,7 +134,62 @@ def list_opportunities(
         .all()
     )
 
-    items = [_build_opportunity_out(o, db, current_user) for o in opps]
+    if not opps:
+        return OpportunityListOut(items=[], total=total, page=page, per_page=per_page)
+
+    opp_ids = [o.id for o in opps]
+
+    # Batch Query 1: View Counts per Opportunity
+    view_counts = dict(
+        db.query(OpportunityView.opportunity_id, func.count(OpportunityView.id))
+        .filter(OpportunityView.opportunity_id.in_(opp_ids))
+        .group_by(OpportunityView.opportunity_id)
+        .all()
+    )
+
+    # Batch Query 2: Comment Counts per Opportunity
+    comment_counts = dict(
+        db.query(Comment.opportunity_id, func.count(Comment.id))
+        .filter(Comment.opportunity_id.in_(opp_ids), Comment.parent_id == None)
+        .group_by(Comment.opportunity_id)
+        .all()
+    )
+
+    # Batch Query 3: Saved Opportunity IDs for current user
+    saved_ids = {
+        s.opportunity_id for s in db.query(SavedOpportunity.opportunity_id)
+        .filter(SavedOpportunity.opportunity_id.in_(opp_ids), SavedOpportunity.user_id == current_user.id)
+        .all()
+    }
+
+    # Batch Query 4: Viewed Opportunity IDs for current user
+    viewed_ids = {
+        v.opportunity_id for v in db.query(OpportunityView.opportunity_id)
+        .filter(OpportunityView.opportunity_id.in_(opp_ids), OpportunityView.user_id == current_user.id)
+        .all()
+    }
+
+    # Batch Query 5: Application Statuses per Opportunity
+    all_statuses = db.query(ApplicationStatus).filter(
+        ApplicationStatus.opportunity_id.in_(opp_ids)
+    ).all()
+
+    statuses_by_opp = {}
+    for st in all_statuses:
+        statuses_by_opp.setdefault(st.opportunity_id, []).append(st)
+
+    items = [
+        _build_opportunity_out(
+            opp=o,
+            current_user=current_user,
+            view_count=view_counts.get(o.id, 0),
+            comment_count=comment_counts.get(o.id, 0),
+            is_saved=o.id in saved_ids,
+            is_viewed=o.id in viewed_ids,
+            statuses=statuses_by_opp.get(o.id, []),
+        )
+        for o in opps
+    ]
     return OpportunityListOut(items=items, total=total, page=page, per_page=per_page)
 
 
@@ -141,10 +217,10 @@ async def create_opportunity(
 
     background_tasks.add_task(
         notify_all_students_new_opportunity,
-        db, opp, current_user.name
+        opp.id, current_user.name
     )
 
-    return _build_opportunity_out(opp, db, current_user)
+    return _get_single_opportunity_out(opp, db, current_user)
 
 
 @router.get("/{opportunity_id}", response_model=OpportunityOut)
@@ -167,7 +243,7 @@ def get_opportunity(
         db.add(view)
         db.commit()
 
-    return _build_opportunity_out(opp, db, current_user)
+    return _get_single_opportunity_out(opp, db, current_user)
 
 
 @router.patch("/{opportunity_id}", response_model=OpportunityOut)
@@ -187,7 +263,7 @@ def update_opportunity(
         setattr(opp, field, value)
     db.commit()
     db.refresh(opp)
-    return _build_opportunity_out(opp, db, current_user)
+    return _get_single_opportunity_out(opp, db, current_user)
 
 
 @router.delete("/{opportunity_id}", status_code=204)
@@ -222,9 +298,9 @@ async def approve_opportunity(
     db.refresh(opp)
     background_tasks.add_task(
         notify_all_students_new_opportunity,
-        db, opp, opp.poster.name
+        opp.id, opp.poster.name
     )
-    return _build_opportunity_out(opp, db, current_user)
+    return _get_single_opportunity_out(opp, db, current_user)
 
 
 @router.post("/{opportunity_id}/status")
@@ -350,8 +426,8 @@ async def send_mail_reminder_to_unread(
             user_id=student.id,
             title=f"⏰ Reminder: {opp.title}",
             message=f"{current_user.name} sent a reminder to check {opp.title}.",
-            type="opportunity",
-            link_id=opp.id,
+            type="new_opportunity",
+            reference_id=opp.id,
         )
         for student in unread_students
     ]

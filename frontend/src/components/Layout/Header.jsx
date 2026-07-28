@@ -8,7 +8,7 @@ import NotificationPanel from '../Notification/NotificationPanel';
 
 export default function Header({ onSearch }) {
   const { user, isSuperAdmin, logout } = useAuth();
-  const { unreadCount } = useNotifications();
+  const { unreadCount, unreadChatCount, unreadAnnouncementCount } = useNotifications();
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -65,13 +65,18 @@ export default function Header({ onSearch }) {
             <button
               key={item.path}
               onClick={() => navigate(item.path)}
-              className={`px-4 py-1.5 rounded-xl text-sm font-semibold transition-all ${
+              className={`relative px-4 py-1.5 rounded-xl text-sm font-semibold transition-all ${
                 isActive
                   ? 'bg-blue-100 text-blue-700 shadow-none'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
-              {item.label}
+              <span className="flex items-center gap-1.5">
+                {item.label}
+                {item.path === '/announcements' && unreadAnnouncementCount > 0 && (
+                  <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse" />
+                )}
+              </span>
             </button>
           );
         })}
@@ -128,10 +133,16 @@ export default function Header({ onSearch }) {
         {/* Direct Messages Shortcut */}
         <button
           onClick={() => navigate('/chat')}
-          className="p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors hidden sm:block"
+          className="relative p-2 rounded-xl text-slate-500 hover:bg-slate-100 transition-colors hidden sm:block"
           title="Messages"
         >
           <ChatBubbleLeftEllipsisIcon className="w-5 h-5" />
+          {unreadChatCount > 0 && (
+            <span className="absolute top-1 right-1 flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600 border border-white" />
+            </span>
+          )}
         </button>
 
         {/* User Badge with Dropdown */}

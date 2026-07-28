@@ -21,7 +21,7 @@ const typeColor = {
 };
 
 export default function NotificationPanel({ onClose }) {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, unreadCount, markAsRead, markAllAsRead, clearAll } = useNotifications();
   const navigate = useNavigate();
   const ref = useRef(null);
 
@@ -63,11 +63,15 @@ export default function NotificationPanel({ onClose }) {
           )}
         </div>
         <div className="flex items-center gap-1">
-          {unreadCount > 0 && (
+          {unreadCount > 0 ? (
             <button onClick={markAllAsRead} className="text-xs text-primary-600 hover:text-primary-700 font-medium px-2 py-1 rounded-lg hover:bg-primary-50 transition-colors">
               Mark all read
             </button>
-          )}
+          ) : notifications.length > 0 ? (
+            <button onClick={clearAll} className="text-xs text-red-500 hover:text-red-600 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
+              Clear all
+            </button>
+          ) : null}
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
             <XMarkIcon className="w-4 h-4" />
           </button>
