@@ -6,13 +6,19 @@ import { useAuth } from '../../context/AuthContext';
  * Play a pleasant 2-note notification chime using the Web Audio API.
  * No audio file required — generated entirely in-browser.
  */
-function playNotificationSound() {
+export function playNotificationSound() {
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const ctx = new AudioContextClass();
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
 
     const notes = [
-      { freq: 880, start: 0,    duration: 0.15 },  // A5
-      { freq: 1174, start: 0.18, duration: 0.25 },  // D6
+      { freq: 880, start: 0, duration: 0.18 },  // A5
+      { freq: 1174, start: 0.15, duration: 0.3 }, // D6
     ];
 
     notes.forEach(({ freq, start, duration }) => {
@@ -25,9 +31,9 @@ function playNotificationSound() {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
 
-      // Smooth fade-in then fade-out for a soft chime feel
+      // Smooth fade-in then fade-out for a rich chime feel
       gain.gain.setValueAtTime(0, ctx.currentTime + start);
-      gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + start + 0.05);
+      gain.gain.linearRampToValueAtTime(0.5, ctx.currentTime + start + 0.04);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + duration);
 
       osc.start(ctx.currentTime + start);
@@ -35,11 +41,17 @@ function playNotificationSound() {
     });
 
     // Close the AudioContext after the chime finishes to free resources
-    setTimeout(() => ctx.close(), 800);
+    setTimeout(() => {
+      if (ctx.state !== 'closed') ctx.close();
+    }, 1000);
   } catch (e) {
-    // Browsers may block audio before user interaction — silently ignore
     console.warn('[FCM] Could not play notification sound:', e.message);
   }
+}
+
+// Expose on window for easy manual testing in browser console
+if (typeof window !== 'undefined') {
+  window.playNotificationSound = playNotificationSound;
 }
 
 /**
