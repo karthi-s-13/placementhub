@@ -1,6 +1,5 @@
-import aiosmtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+# pyrefly: ignore [missing-import]
+import resend
 from typing import List
 import logging
 from app.config import settings
@@ -9,27 +8,22 @@ logger = logging.getLogger(__name__)
 
 
 async def send_email(to_emails: List[str], subject: str, html_body: str):
-    """Send an HTML email via Gmail SMTP."""
-    if not settings.GMAIL_USER or not settings.GMAIL_APP_PASSWORD:
-        logger.warning("Gmail credentials not configured. Skipping email.")
+    """Send an HTML email via Resend (HTTPS-based, works on Render free tier)."""
+    if not settings.RESEND_API_KEY:
+        logger.warning("RESEND_API_KEY not configured. Skipping email.")
         return
 
-    try:
-        message = MIMEMultipart("alternative")
-        message["From"] = f"{settings.APP_NAME} <{settings.GMAIL_USER}>"
-        message["To"] = ", ".join(to_emails)
-        message["Subject"] = subject
-        message.attach(MIMEText(html_body, "html"))
+    resend.api_key = settings.RESEND_API_KEY
 
-        await aiosmtplib.send(
-            message,
-            hostname="smtp.gmail.com",
-            port=587,
-            start_tls=True,
-            username=settings.GMAIL_USER,
-            password=settings.GMAIL_APP_PASSWORD,
-        )
-        logger.info(f"Email sent to {len(to_emails)} recipients: {subject}")
+    try:
+        params: resend.Emails.SendParams = {
+            "from": settings.EMAIL_FROM,
+            "to": to_emails,
+            "subject": subject,
+            "html": html_body,
+        }
+        response = resend.Emails.send(params)
+        logger.info(f"Email sent to {len(to_emails)} recipients: {subject} (id={response.get('id')})")
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
 

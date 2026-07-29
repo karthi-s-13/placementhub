@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
-    GMAIL_USER: str = ""
-    GMAIL_APP_PASSWORD: str = ""
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "PlacementHub <onboarding@resend.dev>"
 
     FRONTEND_URL: str = "http://localhost:5173"
     BATCH_SIZE: int = 53

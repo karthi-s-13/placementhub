@@ -18,10 +18,11 @@ services:
         value: PlacementHub
       - key: SECRET_KEY
         generateValue: true
-      # Gmail SMTP — set these in Render Dashboard (keep secret)
-      - key: GMAIL_USER
+      # Resend Email — set these in Render Dashboard (keep secret)
+      - key: RESEND_API_KEY
         sync: false
-      - key: GMAIL_APP_PASSWORD
+      # EMAIL_FROM e.g. "PlacementHub <noreply@yourdomain.com>"
+      - key: EMAIL_FROM
         sync: false
       # Your deployed frontend URL (e.g. https://placementhub.vercel.app)
       - key: FRONTEND_URL
