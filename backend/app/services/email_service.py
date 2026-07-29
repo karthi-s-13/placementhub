@@ -1,5 +1,6 @@
 # pyrefly: ignore [missing-import]
-import resend
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail, To
 from typing import List
 import logging
 from app.config import settings
@@ -8,22 +9,28 @@ logger = logging.getLogger(__name__)
 
 
 async def send_email(to_emails: List[str], subject: str, html_body: str):
-    """Send an HTML email via Resend (HTTPS-based, works on Render free tier)."""
-    if not settings.RESEND_API_KEY:
-        logger.warning("RESEND_API_KEY not configured. Skipping email.")
+    """Send an HTML email via SendGrid (HTTPS-based, works on Render free tier).
+    No domain ownership required — just verify your Gmail as a Single Sender
+    at https://app.sendgrid.com/settings/sender_auth/senders
+    """
+    if not settings.SENDGRID_API_KEY or not settings.SENDGRID_FROM_EMAIL:
+        logger.warning("SendGrid credentials not configured. Skipping email.")
         return
 
-    resend.api_key = settings.RESEND_API_KEY
-
     try:
-        params: resend.Emails.SendParams = {
-            "from": settings.EMAIL_FROM,
-            "to": to_emails,
-            "subject": subject,
-            "html": html_body,
-        }
-        response = resend.Emails.send(params)
-        logger.info(f"Email sent to {len(to_emails)} recipients: {subject} (id={response.get('id')})")
+        message = Mail(
+            from_email=settings.SENDGRID_FROM_EMAIL,
+            to_emails=[To(email) for email in to_emails],
+            subject=subject,
+            html_content=html_body,
+        )
+
+        sg = SendGridAPIClient(settings.SENDGRID_API_KEY)
+        response = sg.send(message)
+        logger.info(
+            f"Email sent to {len(to_emails)} recipients: {subject} "
+            f"(status={response.status_code})"
+        )
     except Exception as e:
         logger.error(f"Failed to send email: {e}")
 

@@ -18,11 +18,11 @@ services:
         value: PlacementHub
       - key: SECRET_KEY
         generateValue: true
-      # Resend Email — set these in Render Dashboard (keep secret)
-      - key: RESEND_API_KEY
+      # SendGrid Email — set these in Render Dashboard (keep secret)
+      - key: SENDGRID_API_KEY
         sync: false
-      # EMAIL_FROM e.g. "PlacementHub <noreply@yourdomain.com>"
-      - key: EMAIL_FROM
+      # Your verified Gmail address (after Single Sender Verification on SendGrid)
+      - key: SENDGRID_FROM_EMAIL
         sync: false
       # Your deployed frontend URL (e.g. https://placementhub.vercel.app)
       - key: FRONTEND_URL
