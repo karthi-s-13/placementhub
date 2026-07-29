@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
 import { useAuth } from './AuthContext';
+import { onForegroundMessage } from '../services/firebase';
 
 const NotificationContext = createContext(null);
 
@@ -62,7 +63,16 @@ export function NotificationProvider({ children }) {
       fetchNotifications();
       fetchUnreadChatCount();
     }, 30000);
-    return () => clearInterval(interval);
+
+    // Refresh notification bell instantly when a foreground FCM push arrives
+    const unsubFCM = onForegroundMessage(() => {
+      fetchNotifications();
+    });
+
+    return () => {
+      clearInterval(interval);
+      if (typeof unsubFCM === 'function') unsubFCM();
+    };
   }, [fetchNotifications, fetchUnreadChatCount]);
 
   const unreadAnnouncementCount = (notifications || []).filter(
