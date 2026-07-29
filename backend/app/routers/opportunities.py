@@ -15,7 +15,6 @@ from app.schemas.schemas import (
 )
 from app.utils.auth import get_current_user, require_faculty_or_super_admin
 from app.services.notification_service import notify_all_students_new_opportunity
-from app.services.email_service import send_email, build_new_opportunity_email
 
 router = APIRouter(prefix="/api/opportunities", tags=["opportunities"])
 
