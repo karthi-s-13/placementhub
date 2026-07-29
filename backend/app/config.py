@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 days
 
-    SENDGRID_API_KEY: str = ""
-    SENDGRID_FROM_EMAIL: str = ""
+    # Firebase Admin SDK credentials JSON (paste the entire service account JSON as one line)
+    FIREBASE_CREDENTIALS_JSON: str = ""
 
     FRONTEND_URL: str = "http://localhost:5173"
     BATCH_SIZE: int = 53

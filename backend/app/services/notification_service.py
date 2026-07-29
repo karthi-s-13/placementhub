@@ -1,12 +1,7 @@
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.models import Notification, User, Opportunity, Announcement
-from app.services.email_service import (
-    send_email,
-    build_new_opportunity_email,
-    build_announcement_email,
-    build_deadline_reminder_email,
-)
+from app.models.models import Notification, User, Opportunity, Announcement, FCMToken
+from app.services.fcm_service import send_fcm_notification
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,11 +28,20 @@ def create_notification(
     return notif
 
 
+def _get_user_fcm_tokens(db: Session, user_ids: list[int]) -> dict[int, list[str]]:
+    """Return a dict of {user_id: [token, ...]} for users who have FCM tokens."""
+    rows = db.query(FCMToken).filter(FCMToken.user_id.in_(user_ids)).all()
+    result: dict[int, list[str]] = {}
+    for row in rows:
+        result.setdefault(row.user_id, []).append(row.token)
+    return result
+
+
 async def notify_all_students_new_opportunity(
     opportunity_id: int,
     poster_name: str,
 ):
-    """Create in-app notifications and send emails for all students when a new opportunity is posted."""
+    """Create in-app notifications and send FCM push for all students when a new opportunity is posted."""
     db: Session = SessionLocal()
     try:
         opp = db.query(Opportunity).filter(Opportunity.id == opportunity_id).first()
@@ -49,6 +53,7 @@ async def notify_all_students_new_opportunity(
             User.id != opp.posted_by
         ).all()
 
+        # Bulk-insert in-app notifications
         notifications = [
             Notification(
                 user_id=student.id,
@@ -62,17 +67,18 @@ async def notify_all_students_new_opportunity(
         db.add_all(notifications)
         db.commit()
 
-        # Send emails to students who opted in
-        email_students = [s for s in students if s.email_notifications]
-        if email_students:
-            emails = [s.email for s in email_students]
-            html = build_new_opportunity_email(
-                opp.title,
-                opp.company or "",
-                opp.application_link,
-                poster_name,
-            )
-            await send_email(emails, f"[New Placement Drive] {opp.company or 'New'} – {opp.title}", html)
+        # Send FCM push to students who opted in and have a registered token
+        opted_in_ids = [s.id for s in students if s.email_notifications]
+        if opted_in_ids:
+            token_map = _get_user_fcm_tokens(db, opted_in_ids)
+            all_tokens = [t for tokens in token_map.values() for t in tokens]
+            if all_tokens:
+                await send_fcm_notification(
+                    tokens=all_tokens,
+                    title=f"🎯 New Opportunity: {opp.company or opp.title}",
+                    body=f"{poster_name} posted: {opp.title}. Tap to view details.",
+                    data={"type": "new_opportunity", "reference_id": str(opp.id)},
+                )
     except Exception as e:
         logger.error(f"Error in notify_all_students_new_opportunity: {e}")
         db.rollback()
@@ -110,16 +116,17 @@ async def notify_all_students_announcement(
         db.add_all(notifications)
         db.commit()
 
-        email_students = [s for s in students if s.email_notifications]
-        if email_students:
-            emails = [s.email for s in email_students]
-            html = build_announcement_email(
-                ann.title,
-                ann.content,
-                str(ann.event_date) if ann.event_date else "",
-                ann.event_location or "",
-            )
-            await send_email(emails, f"[Placement Update] {ann.title} — PlacementHub", html)
+        opted_in_ids = [s.id for s in students if s.email_notifications]
+        if opted_in_ids:
+            token_map = _get_user_fcm_tokens(db, opted_in_ids)
+            all_tokens = [t for tokens in token_map.values() for t in tokens]
+            if all_tokens:
+                await send_fcm_notification(
+                    tokens=all_tokens,
+                    title=f"📢 {ann.title}",
+                    body=preview_text,
+                    data={"type": "announcement", "reference_id": str(ann.id)},
+                )
     except Exception as e:
         logger.error(f"Error in notify_all_students_announcement: {e}")
         db.rollback()
@@ -144,6 +151,17 @@ async def notify_comment_reply(
             message=comment_content[:100],
             reference_id=opportunity_id,
         )
+
+        # Also send FCM push for the reply
+        token_map = _get_user_fcm_tokens(db, [original_user_id])
+        all_tokens = [t for tokens in token_map.values() for t in tokens]
+        if all_tokens:
+            await send_fcm_notification(
+                tokens=all_tokens,
+                title=f"💬 {replying_user_name} replied",
+                body=comment_content[:100],
+                data={"type": "comment_reply", "reference_id": str(opportunity_id)},
+            )
     except Exception as e:
         logger.error(f"Error in notify_comment_reply: {e}")
         db.rollback()

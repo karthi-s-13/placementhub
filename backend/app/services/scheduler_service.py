@@ -2,9 +2,9 @@ import logging
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
-from app.models.models import Opportunity, User, DirectMessage
-from app.services.email_service import send_email, build_deadline_reminder_email
-from app.services.notification_service import create_notification
+from app.models.models import Opportunity, User, DirectMessage, FCMToken
+from app.services.fcm_service import send_fcm_notification
+from app.services.notification_service import create_notification, _get_user_fcm_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ async def archive_expired_opportunities():
 
 
 async def send_deadline_reminders():
-    """Send reminders for opportunities expiring in the next 24 hours."""
+    """Send FCM push reminders for opportunities expiring in the next 24 hours."""
     db: Session = SessionLocal()
     try:
         now = datetime.utcnow()
@@ -71,8 +71,10 @@ async def send_deadline_reminders():
         ).all()
 
         students = db.query(User).filter(User.is_active == True).all()
+        opted_in_ids = [s.id for s in students if s.email_notifications]
 
         for opp in expiring:
+            # In-app notification for every student
             for student in students:
                 create_notification(
                     db=db,
@@ -83,20 +85,19 @@ async def send_deadline_reminders():
                     reference_id=opp.id,
                 )
 
-            email_students = [s for s in students if s.email_notifications]
-            if email_students:
-                emails = [s.email for s in email_students]
-                html = build_deadline_reminder_email(
-                    opp.title,
-                    opp.company or "",
-                    opp.deadline.strftime("%d %B %Y, %I:%M %p"),
-                    opp.application_link,
-                )
-                await send_email(
-                    emails,
-                    f"⏰ Deadline Tomorrow: {opp.title} — PlacementHub",
-                    html,
-                )
+            # FCM push for opted-in students
+            if opted_in_ids:
+                token_map = _get_user_fcm_tokens(db, opted_in_ids)
+                all_tokens = [t for tokens in token_map.values() for t in tokens]
+                if all_tokens:
+                    deadline_str = opp.deadline.strftime("%d %B %Y, %I:%M %p")
+                    await send_fcm_notification(
+                        tokens=all_tokens,
+                        title=f"⏰ Deadline Tomorrow: {opp.company or opp.title}",
+                        body=f"Apply before {deadline_str}. Don't miss out!",
+                        data={"type": "deadline", "reference_id": str(opp.id)},
+                    )
+
         db.commit()
     except Exception as e:
         logger.error(f"Error sending deadline reminders: {e}")
@@ -138,5 +139,3 @@ def start_scheduler():
 def stop_scheduler():
     if HAS_APSCHEDULER and scheduler and getattr(scheduler, "running", False):
         scheduler.shutdown()
-
-

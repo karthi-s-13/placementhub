@@ -44,6 +44,7 @@ class User(Base):
     announcements = relationship("Announcement", back_populates="creator")
     chat_messages = relationship("ChatMessage", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
+    fcm_tokens = relationship("FCMToken", back_populates="user", cascade="all, delete-orphan")
 
 
 class Opportunity(Base):
@@ -219,3 +220,15 @@ class DirectMessage(Base):
     sender = relationship("User", foreign_keys=[sender_id])
     receiver = relationship("User", foreign_keys=[receiver_id])
 
+
+class FCMToken(Base):
+    """Stores Firebase Cloud Messaging registration tokens per user/device."""
+    __tablename__ = "fcm_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token = Column(String(512), unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = relationship("User", back_populates="fcm_tokens")

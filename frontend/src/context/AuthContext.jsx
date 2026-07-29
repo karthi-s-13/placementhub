@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import api from '../services/api';
+import { requestNotificationPermission, unregisterFCMToken } from '../services/firebase';
 
 const AuthContext = createContext(null);
 
@@ -19,6 +20,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem('ph_token', data.access_token);
       localStorage.setItem('ph_user', JSON.stringify(data.user));
       setUser(data.user);
+      // Request FCM push permission after successful login
+      requestNotificationPermission().catch(() => {});
       return { success: true };
     } catch (err) {
       return { success: false, message: err.response?.data?.detail || 'Login failed' };
@@ -34,6 +37,8 @@ export function AuthProvider({ children }) {
       localStorage.setItem('ph_token', data.access_token);
       localStorage.setItem('ph_user', JSON.stringify(data.user));
       setUser(data.user);
+      // Request FCM push permission after successful registration
+      requestNotificationPermission().catch(() => {});
       return { success: true };
     } catch (err) {
       return { success: false, message: err.response?.data?.detail || 'Registration failed' };
@@ -43,6 +48,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const logout = useCallback(() => {
+    // Remove FCM token from backend before clearing auth
+    unregisterFCMToken().catch(() => {});
     localStorage.removeItem('ph_token');
     localStorage.removeItem('ph_user');
     setUser(null);

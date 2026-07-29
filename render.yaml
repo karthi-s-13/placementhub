@@ -18,11 +18,8 @@ services:
         value: PlacementHub
       - key: SECRET_KEY
         generateValue: true
-      # SendGrid Email — set these in Render Dashboard (keep secret)
-      - key: SENDGRID_API_KEY
-        sync: false
-      # Your verified Gmail address (after Single Sender Verification on SendGrid)
-      - key: SENDGRID_FROM_EMAIL
+      # Firebase Cloud Messaging — paste service account JSON (one line) in Render Dashboard
+      - key: FIREBASE_CREDENTIALS_JSON
         sync: false
       # Your deployed frontend URL (e.g. https://placementhub.vercel.app)
       - key: FRONTEND_URL
