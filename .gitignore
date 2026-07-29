@@ -30,3 +30,4 @@ docker-compose.override.yml
 *.swp
 .DS_Store
 
+firebase/*.json
